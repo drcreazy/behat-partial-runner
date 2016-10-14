@@ -1,3 +1,5 @@
+![Build Status](https://travis-ci.org/TaysirTayyab/behat-partial-runner.svg?branch=master) ![Code Climate](https://codeclimate.com/github/TaysirTayyab/behat-partial-runner/badges/gpa.svg) ![Test Coverage](https://codeclimate.com/github/TaysirTayyab/behat-partial-runner/badges/coverage.svg)
+
 # Behat Partial Runner
 The Partial Runner is a Behat extension which runs a subset of scenarios to parallelize Behat across mutliple nodes.
 
