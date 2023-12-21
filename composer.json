@@ -1,13 +1,9 @@
 {
-    "name": "taysirtayyab/behat-partial-runner",
+    "name": "m00t/behat-partial-runner",
     "type": "library",
     "description": "Partial runner extension for Behat",
     "keywords": ["behat", "bdd", "partial", "runner"],
-    "homepage": "http://github.com/TaysirTayyab/behat-partial-runner",
-    "support": {
-        "issues": "http://github.com/TaysirTayyab/behat-partial-runner/issues",
-        "source": "http://github.com/TaysirTayyab/behat-partial-runner"
-    },
+    "homepage": "https://github.com/drcreazy/behat-partial-runner",
     "license": "MIT",
     "authors": [
         {
