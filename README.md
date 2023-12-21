@@ -3,25 +3,35 @@
 # Behat Partial Runner
 The Partial Runner is a Behat extension which runs a subset of scenarios to parallelize Behat across mutliple nodes.
 
+This a fork from the original author of extension [Anton Serdyuk](https://github.com/anton-siardziuk/behat-partial-runner) with improvements made by [TaysirTayyab](https://github.com/TaysirTayyab/behat-partial-runner)
+
+
 Where as [shvetsgroup/ParallelRunner](https://github.com/shvetsgroup/ParallelRunner) is an excellent tool for parallelizing Behat on a _single_ machine, it unfortunately does not handle parallelizing Behat _across multiple_ machines. The Behat Partial runner fills this gap.
 
 It is _very_ useful for CI services which offer parallelization such as CircleCI and TravisCI.
 
 ## Usage
+As this repository is a fork you have to add to your `composer.json` root:
+```
+"repositories": [
+    {
+        "type": "vcs",
+        "url": "https://github.com/drcreazy/behat-partial-runner.git",
+        "no-api": true
+    }
+],
+```
+
 Require the extension with composer either through CLI or editing the `composer.json`.
 ```
-> bin/composer require --dev taysirtayyab/behat-partial-runner:dev-master
+> bin/composer require --dev m00t/behat-partial-runner:0.0.2
 ```
-```
-"require-dev": {
-  "taysirtayyab/behat-partial-runner": "dev-master"
-}
-```
+
  Then and the extension to your `behat.yml` file.
 ```
 default:
   extensions:
-    Behat\PartialRunner\ServiceContainer\PartialRunnerExtension: ~
+    Behat\PartialRunner\ServiceContainer\PartialRunnerExtension: {}
 ```
 
 Once configured, the parallelization can be invoked using the `--count-workers` and `--worker-number` options.
