@@ -51,7 +51,7 @@ class PartialRunnerExtension implements ExtensionInterface
     /**
      * {@inheritdoc}
      */
-    public function process(ContainerBuilder $container)
+    public function process(ContainerBuilder $container): void
     {
     }
 }
