@@ -16,19 +16,16 @@
         }
     ],
     "require": {
-        "php": ">=5.6",
-        "behat/behat": "~3.0 || ~4.0"
+        "php": ">=8.1",
+        "behat/behat": "^3.0 || ~4.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^5.6",
-        "codeclimate/php-test-reporter": "dev-master"
-    },
-    "config": {
-        "platform": {
-            "php": "5.6"
-        }
+        "phpunit/phpunit": "^11.0"
     },
     "autoload": {
-        "psr-0": { "Behat\\PartialRunner": "src/" }
+        "psr-4": { "Behat\\PartialRunner\\": "src/Behat/PartialRunner/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Tests\\Behat\\PartialRunner\\": "tests/Behat/PartialRunner/" }
     }
 }

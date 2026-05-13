@@ -1,8 +1,6 @@
 <?php
 
-
 namespace Behat\PartialRunner\Filter;
-
 
 use Behat\Gherkin\Filter\SimpleFilter;
 use Behat\Gherkin\Node\ExampleTableNode;
@@ -18,24 +16,20 @@ use RuntimeException;
  */
 class PartialRunnerFilter extends SimpleFilter
 {
-    private $countWorkers;
-    private $workerNumber;
-    private $curScenario;
+    private int $curScenario;
 
     /**
-     * PartialRunnerFilter constructor.
-     *
-     * @param int $countWorkers The current worker
-     * @param int $workerNumber The total number of workers
+     * @param int $countWorkers The total number of workers
+     * @param int $workerNumber The current worker (0-indexed)
      */
-    public function __construct($countWorkers = 1, $workerNumber = 0)
-    {
+    public function __construct(
+        private readonly int $countWorkers = 1,
+        private readonly int $workerNumber = 0,
+    ) {
         if ($countWorkers <= 0 || $workerNumber < 0 || $workerNumber >= $countWorkers) {
             throw new InvalidArgumentException("Received bad arguments for (\$countWorkers, \$workerNumber): ($countWorkers, $workerNumber).");
         }
 
-        $this->countWorkers = $countWorkers;
-        $this->workerNumber = $workerNumber;
         $this->curScenario = $this->countWorkers - $this->workerNumber;
     }
 
@@ -47,19 +41,19 @@ class PartialRunnerFilter extends SimpleFilter
      * @throws RuntimeException If there are no examples in this outline which will run on this node
      * @return ExampleTableNode A filtered table leaving only examples that should run on this node
      */
-    private function filterExampleNode(ExampleTableNode $examples)
+    private function filterExampleNode(ExampleTableNode $examples): ExampleTableNode
     {
         $table = $examples->getTable();
         $newExamples = [];
 
         foreach ($table as $lineNum => $example) {
             // Add the header (first row) automatically, then add the examples that we should run.
-            if (!count($newExamples) || $this->curScenario++ % $this->countWorkers == 0) {
+            if ($newExamples === [] || $this->curScenario++ % $this->countWorkers === 0) {
                 $newExamples[$lineNum] = $example;
             }
         }
 
-        if (count($newExamples) == 1) {
+        if (count($newExamples) === 1) {
             // All we got was the header.
             throw new RuntimeException('No examples will run on this node!');
         }
@@ -67,10 +61,7 @@ class PartialRunnerFilter extends SimpleFilter
         return new ExampleTableNode($newExamples, $examples->getKeyword());
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function filterFeature(FeatureNode $feature)
+    public function filterFeature(FeatureNode $feature): FeatureNode
     {
         $scenarios = [];
 
@@ -81,11 +72,11 @@ class PartialRunnerFilter extends SimpleFilter
                 try {
                     // filter to just the ones that will run on this node
                     $filteredExampleTable = $this->filterExampleNode($scenario->getExampleTable());
-                } catch (RuntimeException $e) {
-                    $filteredExampleTable = [];
+                } catch (RuntimeException) {
+                    $filteredExampleTable = null;
                 }
 
-                if ($filteredExampleTable) {
+                if ($filteredExampleTable !== null) {
                     // if there are examples this node can run, recreate the scenario with just the filtered examples
                     $scenario = new OutlineNode(
                         $scenario->getTitle(),
@@ -93,13 +84,13 @@ class PartialRunnerFilter extends SimpleFilter
                         $scenario->getSteps(),
                         $filteredExampleTable,
                         $scenario->getKeyword(),
-                        $scenario->getLine()
+                        $scenario->getLine(),
                     );
                 } else {
                     // if there were no examples to run, skip this scenario
                     continue;
                 }
-            } elseif ($this->curScenario++ % $this->countWorkers != 0) {
+            } elseif ($this->curScenario++ % $this->countWorkers !== 0) {
                 // for regular scenarios, if its not our turn yet, then skip and increment the counter
                 continue;
             }
@@ -116,26 +107,19 @@ class PartialRunnerFilter extends SimpleFilter
             $feature->getKeyword(),
             $feature->getLanguage(),
             $feature->getFile(),
-            $feature->getLine()
+            $feature->getLine(),
         );
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function isFeatureMatch(FeatureNode $feature)
+    public function isFeatureMatch(FeatureNode $feature): bool
     {
         // we don't want to filter by feature, we want to filter by scenario, so always return false
         return false;
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function isScenarioMatch(ScenarioInterface $scenario)
+    public function isScenarioMatch(ScenarioInterface $scenario): bool
     {
         // we do the filtering up in filterFeature, so always return true
         return true;
     }
-
 }

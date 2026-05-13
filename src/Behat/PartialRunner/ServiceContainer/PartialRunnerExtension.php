@@ -2,7 +2,6 @@
 
 namespace Behat\PartialRunner\ServiceContainer;
 
-
 use Behat\Behat\Gherkin\ServiceContainer\GherkinExtension;
 use Behat\Testwork\Cli\ServiceContainer\CliExtension;
 use Behat\Testwork\ServiceContainer\Extension as ExtensionInterface;
@@ -14,43 +13,28 @@ use Symfony\Component\DependencyInjection\Reference;
 
 class PartialRunnerExtension implements ExtensionInterface
 {
-    /**
-     * {@inheritdoc}
-     */
-    public function load(ContainerBuilder $container, array $config)
+    public function load(ContainerBuilder $container, array $config): void
     {
-        $definition = new Definition('Behat\PartialRunner\Controller\PartialRunnerController', array(
-            new Reference(GherkinExtension::MANAGER_ID)
-        ));
-        $definition->addTag(CliExtension::CONTROLLER_TAG, array('priority' => 1));
+        $definition = new Definition('Behat\PartialRunner\Controller\PartialRunnerController', [
+            new Reference(GherkinExtension::MANAGER_ID),
+        ]);
+        $definition->addTag(CliExtension::CONTROLLER_TAG, ['priority' => 1]);
         $container->setDefinition(CliExtension::CONTROLLER_TAG . '.partial_runner', $definition);
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function configure(ArrayNodeDefinition $builder)
+    public function configure(ArrayNodeDefinition $builder): void
     {
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getConfigKey()
+    public function getConfigKey(): string
     {
         return 'partial_runner';
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function initialize(ExtensionManager $extensionManager)
+    public function initialize(ExtensionManager $extensionManager): void
     {
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function process(ContainerBuilder $container): void
     {
     }

@@ -1,21 +1,19 @@
-<?php namespace Tests\Behat\ParallelRunner\Filter;
+<?php
+
+namespace Tests\Behat\PartialRunner\Filter;
 
 use Behat\Gherkin\Keywords\ArrayKeywords;
 use Behat\Gherkin\Lexer;
 use Behat\Gherkin\Parser;
+use Behat\Gherkin\Node\FeatureNode;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Class FilterTest.
- *
- * Base class for filter testing which sets up a Gherking Feature with several scenarios and a parser.
+ * Base class for filter testing which sets up a Gherkin Feature with several scenarios and a parser.
  */
 abstract class FilterTest extends TestCase
 {
-    /**
-     * @return Parser
-     */
-    protected function getParser()
+    protected function getParser(): Parser
     {
         return new Parser(
             new Lexer(
@@ -32,15 +30,12 @@ abstract class FilterTest extends TestCase
                         'and'              => 'And',
                         'but'              => 'But',
                     ],
-                ])
-            )
+                ]),
+            ),
         );
     }
 
-    /**
-     * @return string
-     */
-    protected function getGherkinFeature()
+    protected function getGherkinFeature(): string
     {
         return <<<'GHERKIN'
 Feature: Long feature with outline
@@ -75,10 +70,7 @@ Feature: Long feature with outline
 GHERKIN;
     }
 
-    /**
-     * @return \Behat\Gherkin\Node\FeatureNode|null
-     */
-    protected function getParsedFeature()
+    protected function getParsedFeature(): ?FeatureNode
     {
         return $this->getParser()->parse($this->getGherkinFeature());
     }
