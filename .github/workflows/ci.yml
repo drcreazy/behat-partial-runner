@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }} / Behat ${{ matrix.behat }}${{ matrix.prefer-lowest && ' / lowest deps' || '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { php: '8.2', behat: '^3.27' }
+          - { php: '8.3', behat: '^3.27' }
+          - { php: '8.4', behat: '^3.27' }
+          - { php: '8.2', behat: '~4.0' }
+          - { php: '8.3', behat: '~4.0' }
+          - { php: '8.4', behat: '~4.0' }
+          - { php: '8.2', behat: '^3.27', prefer-lowest: true }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php${{ matrix.php }}-behat${{ matrix.behat }}-${{ matrix.prefer-lowest || 'highest' }}-${{ hashFiles('composer.json') }}
+
+      - name: Install dependencies
+        run: |
+          composer update --no-interaction --no-progress --prefer-dist \
+            ${{ matrix.prefer-lowest && '--prefer-lowest' || '' }} \
+            --with "behat/behat:${{ matrix.behat }}"
+
+      - name: Run tests
+        run: vendor/bin/phpunit

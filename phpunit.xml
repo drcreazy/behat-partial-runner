@@ -5,12 +5,11 @@
          backupGlobals="false"
          beStrictAboutCoverageMetadata="true"
          beStrictAboutOutputDuringTests="true"
-         beStrictAboutTestsThatDoNotTestAnything="true"
-         beStrictAboutTodoAnnotatedTests="true"
-         verbose="true">
+         beStrictAboutTestsThatDoNotTestAnything="true">
     <testsuites>
         <testsuite name="Behat Partial Runner Tests">
             <directory>tests/Behat/PartialRunner</directory>
+            <exclude>tests/Behat/PartialRunner/Filter/FilterTest.php</exclude>
         </testsuite>
     </testsuites>
     <source>

@@ -2,18 +2,20 @@
 
 namespace Tests\Behat\PartialRunner\Filter;
 
+use Behat\Gherkin\GherkinCompatibilityMode;
 use Behat\Gherkin\Keywords\ArrayKeywords;
 use Behat\Gherkin\Lexer;
-use Behat\Gherkin\Parser;
 use Behat\Gherkin\Node\FeatureNode;
+use Behat\Gherkin\Parser;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 /**
- * Base class for filter testing which sets up a Gherkin Feature with several scenarios and a parser.
+ * Base class for filter testing which sets up a Gherkin parser and feature fixtures.
  */
 abstract class FilterTest extends TestCase
 {
-    protected function getParser(): Parser
+    protected function getParser(GherkinCompatibilityMode $mode = GherkinCompatibilityMode::LEGACY): Parser
     {
         return new Parser(
             new Lexer(
@@ -32,10 +34,23 @@ abstract class FilterTest extends TestCase
                     ],
                 ]),
             ),
+            $mode,
         );
     }
 
-    protected function getGherkinFeature(): string
+    protected function getParsedFeature(
+        string $gherkin,
+        GherkinCompatibilityMode $mode = GherkinCompatibilityMode::LEGACY,
+    ): FeatureNode {
+        return $this->getParser($mode)->parse($gherkin)
+            ?? throw new RuntimeException('Test fixture failed to parse.');
+    }
+
+    /**
+     * A feature with four scenarios (two regular, one outline with three examples, one regular).
+     * Slot order: Scenario#1, Scenario#2, act#1, act#2, act#3, Scenario#4.
+     */
+    protected function getStandardFeature(): string
     {
         return <<<'GHERKIN'
 Feature: Long feature with outline
@@ -70,8 +85,85 @@ Feature: Long feature with outline
 GHERKIN;
     }
 
-    protected function getParsedFeature(): ?FeatureNode
+    protected function getParsedStandardFeature(): FeatureNode
     {
-        return $this->getParser()->parse($this->getGherkinFeature());
+        return $this->getParsedFeature($this->getStandardFeature());
+    }
+
+    /**
+     * An outline with two tagged Examples tables.
+     * Slot order: act#1, act#2 (in @fast), act#3, act#4 (in @slow).
+     */
+    protected function getParsedMultiExamplesFeature(): FeatureNode
+    {
+        return $this->getParsedFeature(
+            <<<'GHERKIN'
+Feature: Multi examples feature
+
+  Scenario Outline: Multi examples outline
+    When <action> occurs
+    Then <outcome> should be visible
+
+    @fast
+    Examples:
+      | action | outcome |
+      | act#1  | out#1   |
+      | act#2  | out#2   |
+
+    @slow
+    Examples:
+      | action | outcome |
+      | act#3  | out#3   |
+      | act#4  | out#4   |
+GHERKIN,
+            GherkinCompatibilityMode::GHERKIN_32,
+        );
+    }
+
+    /**
+     * A feature with two rules, each containing its own background and/or scenarios.
+     * Slot order: Scenario#1, Rule scenario#1, act#1, act#2, Scenario#2, Second rule scenario.
+     * Note: Scenario#2 is parsed inside the first Rule (a gherkin Rule spans until the next Rule or EOF).
+     */
+    protected function getParsedRulesFeature(): FeatureNode
+    {
+        return $this->getParsedFeature(
+            <<<'GHERKIN'
+Feature: Feature with rules
+  Background:
+    Given feature background step
+
+  Scenario: Scenario#1
+    When action occurs
+    Then outcomes should be visible
+
+  Rule: Business rule
+    Background:
+      Given rule background step
+
+    Scenario: Rule scenario#1
+      When action occurs
+      Then outcomes should be visible
+
+    Scenario Outline: Rule outline
+      When <action> occurs
+      Then <outcome> should be visible
+
+      Examples:
+        | action | outcome |
+        | act#1  | out#1   |
+        | act#2  | out#2   |
+
+  Scenario: Scenario#2
+    When action occurs
+    Then outcomes should be visible
+
+  Rule: Second rule
+    Scenario: Second rule scenario
+      When action occurs
+      Then outcomes should be visible
+GHERKIN,
+            GherkinCompatibilityMode::GHERKIN_32,
+        );
     }
 }

@@ -2,21 +2,37 @@
 
 namespace Behat\PartialRunner\Filter;
 
-use Behat\Gherkin\Filter\SimpleFilter;
+use Behat\Gherkin\Filter\FeatureFilterInterface;
 use Behat\Gherkin\Node\ExampleTableNode;
 use Behat\Gherkin\Node\FeatureNode;
 use Behat\Gherkin\Node\OutlineNode;
+use Behat\Gherkin\Node\RuleNode;
 use Behat\Gherkin\Node\ScenarioInterface;
 use InvalidArgumentException;
-use RuntimeException;
 
 /**
  * A scenario filter which filters on individual scenarios and outlines. Useful for separating tests onto multiple
  * worker nodes.
+ *
+ * Allocation model: every runnable "slot" consumes one position from a shared, monotonically increasing counter.
+ * A regular scenario is one slot; each data row of an outline Examples table is one slot; header rows and
+ * backgrounds are free. Worker N keeps the slots whose position p satisfies p % countWorkers === N, so worker 0
+ * always keeps the first slot of the run.
+ *
+ * The counter is shared across every feature filtered by this instance: in a Behat run a single filter instance
+ * processes the whole suite, giving a global round-robin distribution. It is deliberately not reset between
+ * features.
+ *
+ * Rule nodes are recursed into; a rule whose scenarios are all allocated elsewhere is dropped (its background is
+ * kept when at least one scenario survives). Outlines with multiple Examples tables keep each surviving table
+ * independently (with its tags, name and description) and are dropped when no table survives. Note: a 0-row
+ * Examples table is dropped, where historically it was kept empty — the net runtime effect is identical (no
+ * examples would run).
  */
-class PartialRunnerFilter extends SimpleFilter
+final class PartialRunnerFilter implements FeatureFilterInterface
 {
-    private int $curScenario;
+    /** Position of the next slot to be allocated. */
+    private int $nextSlot = 0;
 
     /**
      * @param int $countWorkers The total number of workers
@@ -26,100 +42,109 @@ class PartialRunnerFilter extends SimpleFilter
         private readonly int $countWorkers = 1,
         private readonly int $workerNumber = 0,
     ) {
-        if ($countWorkers <= 0 || $workerNumber < 0 || $workerNumber >= $countWorkers) {
-            throw new InvalidArgumentException("Received bad arguments for (\$countWorkers, \$workerNumber): ($countWorkers, $workerNumber).");
+        if ($countWorkers <= 0) {
+            throw new InvalidArgumentException(sprintf('--count-workers must be at least 1, got %d.', $countWorkers));
         }
 
-        $this->curScenario = $this->countWorkers - $this->workerNumber;
+        if ($workerNumber < 0) {
+            throw new InvalidArgumentException(sprintf('--worker-number must be a non-negative integer, got %d.', $workerNumber));
+        }
+
+        if ($workerNumber >= $countWorkers) {
+            throw new InvalidArgumentException(sprintf('--worker-number (%d) must be less than --count-workers (%d).', $workerNumber, $countWorkers));
+        }
     }
 
     /**
-     * This method takes an example table for a scenario and filters it according to the total number of nodes. Each
-     * example is treated like it's own scenario as far as counting goes for the workers.
-     *
-     * @param  ExampleTableNode $examples The examples of the Scenario Outline
-     * @throws RuntimeException If there are no examples in this outline which will run on this node
-     * @return ExampleTableNode A filtered table leaving only examples that should run on this node
+     * This filter never matches a whole feature: it only selects individual scenarios and example rows. Returning
+     * false makes Gherkin::load() drop features left without scenarios.
      */
-    private function filterExampleNode(ExampleTableNode $examples): ExampleTableNode
+    public function isFeatureMatch(FeatureNode $feature): bool
     {
-        $table = $examples->getTable();
-        $newExamples = [];
-
-        foreach ($table as $lineNum => $example) {
-            // Add the header (first row) automatically, then add the examples that we should run.
-            if ($newExamples === [] || $this->curScenario++ % $this->countWorkers === 0) {
-                $newExamples[$lineNum] = $example;
-            }
-        }
-
-        if (count($newExamples) === 1) {
-            // All we got was the header.
-            throw new RuntimeException('No examples will run on this node!');
-        }
-
-        return new ExampleTableNode($newExamples, $examples->getKeyword());
+        return false;
     }
 
     public function filterFeature(FeatureNode $feature): FeatureNode
     {
-        $scenarios = [];
+        $children = [];
 
-        // loop through each scenario in this feature file
-        foreach ($feature->getScenarios() as $scenario) {
-            // if this is a scenario outline, we need to look at each example
-            if ($scenario instanceof OutlineNode && $scenario->hasExamples()) {
-                try {
-                    // filter to just the ones that will run on this node
-                    $filteredExampleTable = $this->filterExampleNode($scenario->getExampleTable());
-                } catch (RuntimeException) {
-                    $filteredExampleTable = null;
-                }
+        foreach ($feature->getExecutableChildren() as $child) {
+            $filtered = $child instanceof RuleNode ? $this->filterRule($child) : $this->filterScenario($child);
 
-                if ($filteredExampleTable !== null) {
-                    // if there are examples this node can run, recreate the scenario with just the filtered examples
-                    $scenario = new OutlineNode(
-                        $scenario->getTitle(),
-                        $scenario->getTags(),
-                        $scenario->getSteps(),
-                        $filteredExampleTable,
-                        $scenario->getKeyword(),
-                        $scenario->getLine(),
-                    );
-                } else {
-                    // if there were no examples to run, skip this scenario
-                    continue;
-                }
-            } elseif ($this->curScenario++ % $this->countWorkers !== 0) {
-                // for regular scenarios, if its not our turn yet, then skip and increment the counter
-                continue;
+            if ($filtered !== null) {
+                $children[] = $filtered;
             }
-
-            $scenarios[] = $scenario;
         }
 
-        return new FeatureNode(
-            $feature->getTitle(),
-            $feature->getDescription(),
-            $feature->getTags(),
-            $feature->getBackground(),
-            $scenarios,
-            $feature->getKeyword(),
-            $feature->getLanguage(),
-            $feature->getFile(),
-            $feature->getLine(),
-        );
+        return $feature->withScenarios($children);
     }
 
-    public function isFeatureMatch(FeatureNode $feature): bool
+    /** @return RuleNode|null null when no scenario inside the rule belongs to this worker */
+    private function filterRule(RuleNode $rule): ?RuleNode
     {
-        // we don't want to filter by feature, we want to filter by scenario, so always return false
-        return false;
+        $children = [];
+
+        foreach ($rule->getExecutableChildren() as $scenario) {
+            $filtered = $this->filterScenario($scenario);
+
+            if ($filtered !== null) {
+                $children[] = $filtered;
+            }
+        }
+
+        if ($children === []) {
+            return null;
+        }
+
+        if ($rule->hasBackground()) {
+            array_unshift($children, $rule->getBackground());
+        }
+
+        return $rule->withChildren($children);
     }
 
-    public function isScenarioMatch(ScenarioInterface $scenario): bool
+    /** @return ScenarioInterface|null null when this worker has no slot in the scenario */
+    private function filterScenario(ScenarioInterface $scenario): ?ScenarioInterface
     {
-        // we do the filtering up in filterFeature, so always return true
-        return true;
+        // Outlines without Examples tables are treated as a single slot, like any scenario.
+        if (!$scenario instanceof OutlineNode || !$scenario->hasExamples()) {
+            return $this->isNextSlotMine() ? $scenario : null;
+        }
+
+        $tables = [];
+
+        foreach ($scenario->getExampleTables() as $table) {
+            $filteredTable = $this->filterExampleTable($table);
+
+            if ($filteredTable !== null) {
+                $tables[] = $filteredTable;
+            }
+        }
+
+        return $tables === [] ? null : $scenario->withTables($tables);
+    }
+
+    /** @return ExampleTableNode|null null when no data row of this table belongs to this worker */
+    private function filterExampleTable(ExampleTableNode $table): ?ExampleTableNode
+    {
+        $rows = [];
+
+        foreach ($table->getTable() as $line => $row) {
+            // The first row is the header; it is kept for free. Every data row is one slot.
+            if ($rows === [] || $this->isNextSlotMine()) {
+                $rows[$line] = $row;
+            }
+        }
+
+        return count($rows) > 1 ? $table->withTable($rows) : null;
+    }
+
+    /**
+     * Consumes the next slot position and returns whether it belongs to this worker.
+     * Position p belongs to worker N iff p % countWorkers === N.
+     */
+    private function isNextSlotMine(): bool
+    {
+        return $this->nextSlot++ % $this->countWorkers === $this->workerNumber;
     }
 }

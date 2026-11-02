@@ -4,7 +4,6 @@ namespace Behat\PartialRunner\Controller;
 
 use Behat\Gherkin\Gherkin;
 use Behat\Testwork\Cli\Controller;
-use InvalidArgumentException;
 use Behat\PartialRunner\Filter\PartialRunnerFilter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -42,14 +41,7 @@ class PartialRunnerController implements Controller
         $total = (int) $input->getOption('count-workers');
         $worker = (int) $input->getOption('worker-number');
 
-        if ($total < 0 || $worker < 0) {
-            throw new InvalidArgumentException("--worker-number ($worker) and --count-workers ($total) must be greater than 0.");
-        }
-
-        if ($worker >= $total) {
-            throw new InvalidArgumentException("--worker-number ($worker) must be less than --count-workers ($total).");
-        }
-
+        // Validation lives in the filter constructor; it throws with a friendly message.
         $this->gherkin->addFilter(new PartialRunnerFilter($total, $worker));
 
         return null;
